@@ -4,7 +4,7 @@ const pkg = require("@atproto/api");
 const chalk = require('chalk');
 const BskyAgent = pkg.BskyAgent;
 const app = express();
-const verbose = true;
+const verbose = false;
 
 require("dotenv").config();
 app.set("views", "./pages");
@@ -194,7 +194,8 @@ async function getAllPosts(handle) {
 async function getProfileRetID(profile) {
     return new Promise((resolve, reject) => {
         const deletePostsQuery = 'SELECT id FROM profiles WHERE did = ?';
-        db.query(deletePostsQuery, [profile.author.did], (err, result) => {
+		let profileVar = profile.did === undefined? profile.author.did : profile.did
+        db.query(deletePostsQuery, [profileVar], (err, result) => {
             if (err) {
                 reject(err);
             } else {
@@ -207,10 +208,7 @@ async function getProfileRetID(profile) {
 
 async function deleteTable() {
     try {
-        // Delete posts associated with profiles
         await deletePosts();
-
-        // Delete profiles
         await deleteProfiles();
 
         console.log('Deletion successful.');
@@ -247,16 +245,12 @@ async function deleteProfiles() {
 
 // Insert or update a profile to the database
 async function insertOrUpdateProfile(profileData) {
-	const profile = await retriveProfileUsingDID(profileData.did);
-	let formattedIndexedAt = '';
-	if (profileData.indexedAt instanceof Date && !isNaN(profileData.indexedAt)) {
-		formattedIndexedAt = profileData.indexedAt.toISOString().slice(0, 19).replace('T', ' ');
-	}  else {
-		const today = new Date();
-		formattedIndexedAt = today.toISOString().slice(0, 19).replace('T', ' ');
-	}
+	let profile;
+	const profileAuth = await retriveProfileUsingDID(profileData.did);
+	const today = new Date();
+	const formattedIndexedAt = today.toISOString().slice(0, 19).replace('T', ' ');
 
-	if (!profile){
+	if (!profileAuth){
 		// Create Profile
 		try {
 			let post = {
@@ -270,74 +264,90 @@ async function insertOrUpdateProfile(profileData) {
 				indexed_at: formattedIndexedAt
 			};
 			let sql = 'INSERT INTO profiles SET ?'
-			db.query(sql, post, (err, result) => {
-			if (err) {
-				throw err;
-			}
-			console.log(result);
-		  });
+			profile = await new Promise((resolve, reject) => {
+				db.query(sql, post, (err, result) => {
+					if (err) {
+						console.error(`Error creating profile for ${profileData.handle}: ${err.message}`);
+						reject(err);
+						return;
+					}
+					console.log(`New profile created for ${profileData.handle}`);
+					resolve({ ...post });
+				});
+			});
 	  	} catch (error) {
 			console.error(`Error creating post with did: ${profileData.did}.`);
 			throw error;
 		}
-		console.log(`New profile created for ${profileData.handle}`);
 	} else {
 		// Post exists, update it
 		try {
-			let updatePost = 
-			`UPDATE profiles
-			SET handle = ?,
-			    display_name = ?,
-				description = ?,
-				follows_count = ?,
-				followers_count = ?,
-				posts_count = ?,
-				indexed_at = ?
-			WHERE did = ?`;
-			db.query(updatePost, [
-				profileData.did,
-				profileData.handle || '',
-				profileData.displayName || '',
-				profileData.description || '',
-				profileData.followsCount || 0,
-				profileData.followersCount || 0,
-				profileData.postsCount || 0,
-				profileData.indexedAt = formattedIndexedAt
-			], (err, result) => {
-			if (err) {
-				throw err;
+			let updatePost = 'UPDATE profiles SET ';
+			let params = [];
+			let paramValues = [];
+			
+			if (profileData.handle !== undefined) {
+			  params.push('handle = ?');
+			  paramValues.push(profileData.handle || '');
 			}
-			console.log(result);
-		  });
+			
+			if (profileData.displayName !== undefined) {
+			  params.push('display_name = ?');
+			  paramValues.push(profileData.displayName || '');
+			}
+			
+			if (profileData.description !== undefined) {
+			  params.push('description = ?');
+			  paramValues.push(profileData.description || '');
+			}
+			
+			if (profileData.followsCount !== undefined && profileData.followsCount > 0) {
+				params.push('follows_count = ?');
+				paramValues.push(profileData.followsCount || 0);
+			  }		
+			if (profileData.followersCount !== undefined && profileData.followersCount > 0) {
+				params.push('followers_count = ?');
+				paramValues.push(profileData.followersCount || '');
+			}	
+			if (profileData.postsCount !== undefined && profileData.postsCount > 0) {
+				params.push('posts_count = ?');
+				paramValues.push(profileData.postsCount || '');
+			}
+			params.push('indexed_at = ?');
+			paramValues.push(formattedIndexedAt);
+			
+			updatePost += params.join(', ');
+
+			updatePost += ' WHERE did = ?';
+			paramValues.push(profileData.did);
+			// COMMA ISSUE
+			await new Promise((resolve, reject) => {
+				db.query(updatePost, paramValues, (err, result) => {
+				if (err) {
+					console.error(`Error updating profile for ${profileData.handle}: ${err.message}`);
+					reject(err);
+					return;
+				}
+
+				console.log(`Existing profile updated for ${profileData.handle}`);
+				profile = { ...profileData, indexed_at: formattedIndexedAt };
+				resolve();
+				});
+			});
 		} catch (error) {
-			console.error(`Profile updated with did: ${profileData.did}.`);
 			throw error;
 		}
-        console.log(`Existing profile updated for ${profileData.handle}`);
 	}
-
-    return profile;
+	return profile;
 }
-
 // Insert or update all posts associated with the user
 async function insertOrUpdatePost(verboseOutput, postData) {
-	const post = await getPostByUri(postData.uri);
-	let formattedIndexedAt = '';
-	let formattedCreatedAt = '';
-	if (postData.indexedAt instanceof Date && !isNaN(postData.indexedAt)) {
-		formattedIndexedAt = postData.indexedAt.toISOString().slice(0, 19).replace('T', ' ');
-	} else {
-		const today = new Date();
-		formattedIndexedAt = today.toISOString().slice(0, 19).replace('T', ' ');
-	}
-	if (postData.createdAt instanceof Date && !isNaN(postData.createdAt)) {
-		formattedCreatedAt = postData.createdAt.toISOString().slice(0, 19).replace('T', ' ');
-	} else {
-		const today = new Date();
-		formattedCreatedAt = today.toISOString().slice(0, 19).replace('T', ' ');
-	}
-	
-	if (!post){
+	let posts;
+	const postAuth = await getPostByUri(postData.uri);
+	const today = new Date();
+	const formattedIndexedAt = today.toISOString().slice(0, 19).replace('T', ' ');	
+	const formattedCreatedAt = postData.record.createdAt.slice(0, 19).replace('T', ' ');
+	if (!postAuth){
 		// Get author profile
 		let profile = await insertOrUpdateProfile({
 			did: postData.author.did,
@@ -345,17 +355,9 @@ async function insertOrUpdatePost(verboseOutput, postData) {
             displayName: postData.author.displayName,
             indexedAt: formattedIndexedAt
 		});
-
 		// Create Post
 		try {
-			let profileRetID;
-			if (profile && profile.id !== undefined) {
-				profileRetID = await getProfileRetID(postData);
-			}else if (profile){
-				profileRetID = profile.id;
-			}else{
-				console.log(profile);
-			}
+			let profileRetID = await getProfileRetID(profile);
 			let post = {
 				profile_id: profileRetID,
 				uri: postData.uri || '',
@@ -372,13 +374,17 @@ async function insertOrUpdatePost(verboseOutput, postData) {
 				return post.text.slice(0, 252) + '...';
 			  }
 			let sql = 'INSERT INTO posts SET ?'
-			db.query(sql, post, (err, result) => {
-			if (err) {
-				throw err;
-			}
-			console.log(result);
-		  });
-		  console.log(`New post created with URL: ${post.url}`);
+			posts = await new Promise((resolve, reject) => {
+				db.query(sql, post, (err, result) => {
+					if (err) {
+					console.error(`Error updating post for ${postData.uri}: ${err.message}`);
+					reject(err);
+					return;
+				}
+				console.log(`New post created for ${postData.uri}`);
+				resolve({...post});
+			});
+		});
 	  } catch (error) {
 			console.error(`Error creating post with uri: ${postData.uri}.`);
 			throw error;
@@ -386,28 +392,47 @@ async function insertOrUpdatePost(verboseOutput, postData) {
 	} else {
 		// Post exists, update it
 		try {
-			let updatePost = `UPDATE posts
-			SET reply_count = ?,
-				repost_count = ?,
-				like_count = ?,
-				indexed_at = ?
-			WHERE uri = ?;`;
-			db.query(updatePost, [postData.replyCount || 0, postData.repostCount || 0,  postData.likeCount || 0, formattedIndexedAt, postData.uri], (err, result) => {
-			if (err) {
-				throw err;
+			let updatePost = 'UPDATE posts SET ';
+			let paramValues = [];
+			
+			if (postData.replyCount !== undefined) {
+			  updatePost += ' reply_count = ?,';
+			  paramValues.push(postData.replyCount || 0);
 			}
-			console.log(result);
-		  });
-		  console.log(`Existing post updated with URL: ${post.url}`);
-		} catch (error) {
-			console.error(`Post updated with uri: ${postData.uri}.`);
-			throw error;
-		}
-	}
-	if (verboseOutput) {
-        console.log(postData);
-    }
-    return post;
+			
+			if (postData.repostCount !== undefined) {
+			  updatePost += ' repost_count = ?,';
+			  paramValues.push(postData.repostCount || 0);
+			}
+			
+			if (postData.likeCount !== undefined) {
+			  updatePost += ' like_count = ?,';
+			  paramValues.push(postData.likeCount || 0);
+			}
+			
+			updatePost += ' indexed_at = ? WHERE uri = ?';
+			paramValues.push(formattedIndexedAt, postData.uri);
+			await new Promise((resolve, reject) => {
+				db.query(updatePost, paramValues, (err, result) => {
+				  if (err) {
+					console.error(`Error updating post with URI: ${postData.uri}: ${err.message}`);
+					reject(err);
+					return;
+				  }
+		  
+				  console.log(`Existing post updated with URI: ${postData.uri}`);
+				  posts = { ...postData, indexed_at: formattedIndexedAt };
+				  resolve();
+				});
+			  });
+			} catch (error) {
+			  console.error(`Error updating post with URI: ${postData.uri}: ${error.message}`);
+			  throw error;
+			}
+		} if (verboseOutput) {
+        	console.log(postData);
+    	}
+    return posts;
 }
 
 // Fetch Profile Information and Post Information
@@ -424,6 +449,7 @@ async function fetchProfile(argv) {
         return;
     }
 	// Load all of the profile's posts
+	let profile = await insertOrUpdateProfile(profileData);
 	let postsCnt = profileData.postsCount;
     let posts = [];
     let cursor = null;
@@ -431,7 +457,7 @@ async function fetchProfile(argv) {
     while ((counter < postsCnt) && true) {
         try {
             // Make the API request
-            let params = { actor: profileData.handle, limit: 100 }
+            let params = { actor: profile.handle, limit: 100 }
             if (cursor) {
                 params.cursor = cursor;
             }
@@ -530,7 +556,7 @@ async function startServer() {
             password: process.env.BLUESKY_PASSWORD,
         });
     } catch (error) {
-        console.error(`Error: Failed to login. Please check your BLUESKY_USERNAME and BLUESKY_PASSWORD. ${process.env.BLUESKY_USERNAME} and ${process.env.BLUESKY_PASSWORD}}`);
+        console.error(`Error: Failed to login. Please check your BLUESKY_USERNAME and BLUESKY_PASSWORD.`);
 		throw(error);
     }
 	startServer();
