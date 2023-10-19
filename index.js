@@ -561,6 +561,3 @@ async function startServer() {
     }
 	startServer();
 })();
-
-// Update only if it exists
-// Profile.id is null (await)
