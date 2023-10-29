@@ -20,12 +20,12 @@ global.fetch = fetch;
 
 // Create connection
 const db = mysql.createConnection({
-	host: "localhost",
+	host: "127.0.0.1",
   	user: "vikas",
   	password: "database",
   	database: "bluesky_db",
   	port: 3306,
-	charset: 'utf8mb4'
+    charset: "utf8mb4"
 });
 
 db.connect((err) => {
@@ -127,31 +127,112 @@ async function retrieveProfileUsingDID(did) {
 }
 
 async function deleteIncorrectRows() {
-    return new Promise((resolve, reject) => {
-        // Identify and delete related rows in the 'posts' table
-        const deletePostsQuery = 'DELETE FROM posts WHERE profile_id IN (SELECT id FROM profiles WHERE followers_count = 0 and follows_count = 0 and posts_count = 0)';
-        db.query(deletePostsQuery, (err, postsResult) => {
-            if (err) {
-                reject(err);
-            } else {
-                // Once related 'posts' rows are deleted, delete the corresponding 'profiles' rows
-                const deleteProfilesQuery = 'DELETE FROM profiles WHERE followers_count = 0 and follows_count = 0 and posts_count = 0';
-                db.query(deleteProfilesQuery, (err, profilesResult) => {
+    try {
+        // Identify profile IDs that meet the criteria
+        const selectProfilesQuery = 'SELECT id FROM profiles WHERE followers_count = 0 and follows_count = 0 and posts_count = 0';
+
+        const profiles = await new Promise((resolve, reject) => {
+            db.query(selectProfilesQuery, (err, result) => {
+                if (err) {
+                    console.error('Error selecting profiles:', err);
+                    reject(err);
+                } else {
+                    resolve(result);
+                }
+            });
+        });
+
+        // Extract profile IDs from the result
+        const profileIds = profiles.map(profile => profile.id);
+
+        if (profileIds.length === 0) {
+            // No profiles meet the criteria, nothing to delete
+            return {
+                postsDeleted: 0,
+                profilesDeleted: 0,
+            };
+        } else {
+            // Delete related posts
+            const deletePostsQuery = 'DELETE FROM posts WHERE profile_id IN (?)';
+
+            const postsResult = await new Promise((resolve, reject) => {
+                db.query(deletePostsQuery, [profileIds], (err, result) => {
                     if (err) {
+                        console.error('Error deleting posts:', err);
                         reject(err);
                     } else {
-                        resolve({
-                            postsDeleted: postsResult.affectedRows,
-                            profilesDeleted: profilesResult.affectedRows,
-                        });
+                        console.log('Deleted posts:', result.affectedRows);
+                        resolve(result);
                     }
                 });
+            });
+
+            // Once related 'posts' rows are deleted, delete the corresponding 'profiles' rows
+            const deleteProfilesQuery = 'DELETE FROM profiles WHERE id IN (?)';
+
+            const profilesResult = await new Promise((resolve, reject) => {
+                db.query(deleteProfilesQuery, [profileIds], (err, result) => {
+                    if (err) {
+                        console.error('Error deleting profiles:', err);
+                        reject(err);
+                    } else {
+                        console.log('Deleted profiles:', result.affectedRows);
+                        resolve(result);
+                    }
+                });
+            });
+
+            return {
+                postsDeleted: postsResult.affectedRows,
+                profilesDeleted: profilesResult.affectedRows,
+            };
+        }
+    } catch (error) {
+        // Handle any errors that occur during the process
+        console.error('Error:', error);
+        throw error;
+    }
+}
+
+async function deletePosts(profileIds) {
+    const deletePostsQuery = 'DELETE FROM posts WHERE profile_id IN (?)';
+    const postsResult = await new Promise((resolve, reject) => {
+        db.query(deletePostsQuery, [profileIds], (err, result) => {
+            if (err) {
+                console.error('Error deleting posts:', err);
+                reject(err);
+            } else {
+                console.log('Deleted posts:', result.affectedRows);
+                resolve(result.affectedRows);
             }
         });
     });
+    return postsResult;
 }
 
+async function deleteProfiles(profileIds) {
+    const deleteProfilesQuery = 'DELETE FROM profiles WHERE id IN (?)';
+    const profilesResult = await new Promise((resolve, reject) => {
+        db.query(deleteProfilesQuery, [profileIds], (err, result) => {
+            if (err) {
+                console.error('Error deleting profiles:', err);
+                reject(err);
+            } else {
+                console.log('Deleted profiles:', result.affectedRows);
+                resolve(result.affectedRows);
+            }
+        });
+    });
+    return profilesResult;
+}
 
+function splitIntoBatches(arr, batchSize) {
+    const batches = [];
+    for (let i = 0; i < arr.length; i += batchSize) {
+        batches.push(arr.slice(i, i + batchSize));
+    }
+    return batches;
+}
 
 async function getPostByUri(uri) {
     return new Promise((resolve, reject) => {
@@ -498,7 +579,7 @@ async function fetchProfile(argv) {
 			process.exit(0);
 		}else{
 			console.error(`Error: Failed to fetch user ${argv}`);
-			return;
+			throw error;
 		}
     }
 
@@ -531,7 +612,7 @@ async function fetchProfile(argv) {
 				process.exit(0);
 			}else{
 				console.error(`Error: Failed to fetch user ${argv}`);
-				return;
+				throw error;
 			}
         }
         
@@ -631,51 +712,56 @@ async function startServer() {
 })();
 
 async function openFirehose(service = 'wss://bsky.social', onMessage) {
-    const RECONNECT_DELAY_MS = 2500;
-    const interval = 10000;
-    let messageQueue = [];
-    let processing = false;
+    const runTime = 30 * 1000; // 35 seconds
+    const pauseTime = 5 * 60 * 1000; // 5 minutes
 
-    const ws = new WebSocket(`${service}/xrpc/com.atproto.sync.subscribeRepos`);
-    ws.binaryType = 'arraybuffer';
+    let ws;
+    let running = false;
 
-    ws.addEventListener('message', ({ data }) => {
-        // Add the message to the queue
-        messageQueue.push(data);
-
-        // If not already processing, start processing the queue
-        if (!processing) {
-            processQueue();
+    async function start() {
+        if (running) {
+            console.log("Already running. Skipping this run.");
+            return;
         }
-    });
 
-    ws.addEventListener('close', () => {
-        // WebSocket connection closed; attempt to reconnect after a delay
-        console.log('WebSocket connection closed. Attempting to reconnect...');
+        ws = new WebSocket(`${service}/xrpc/com.atproto.sync.subscribeRepos`);
+        ws.binaryType = 'arraybuffer';
+
+        ws.addEventListener('message', async ({ data }) => {
+            if (!running) {
+                return; // Stop processing messages if not running
+            }
+
+            try {
+                // Process the message here
+                const uint8Data = new Uint8Array(Buffer.from(data, 'base64'));
+                const cborData = cbor.decodeAllSync(uint8Data);
+                if (cborData[1].repo) {
+                    await fetchProfile(cborData[1].repo);
+                }
+            } catch (error) {
+                console.error(`Error: ${error.message}`);
+            }
+        });
+
+        ws.addEventListener('close', () => {
+            if (running) {
+                console.log('WebSocket connection closed. Attempting to reconnect...');
+                setTimeout(() => {
+                    start();
+                }, pauseTime);
+            }
+        });
+
+        running = true;
+
         setTimeout(() => {
-            openFirehose(service, onMessage);
-        }, RECONNECT_DELAY_MS);
-    });
+            running = false; // Stop running after the runTime
+            ws.close();
+            setTimeout(start, pauseTime);
+        }, runTime);
+    }
 
-    async function processQueue() {
-		if (messageQueue.length > 0) {
-			const data = messageQueue.shift();
-			try {
-				const uint8Data = new Uint8Array(Buffer.from(data, 'base64'));
-				const cborData = cbor.decodeAllSync(uint8Data);
-				if (cborData[1].repo) {
-					await fetchProfile(cborData[1].repo);
-				}
-			} catch (error) {
-				console.error(`Error: ${error.message}`);
-			}
-	
-			// Ensure that fetchProfile has completed before processing the next message
-			await new Promise(resolve => setTimeout(resolve, interval));
-	
-			processQueue(); // Process the next message
-		} else {
-			processing = false;
-		}
-	}
+    // Start the initial run
+    await start();
 }
