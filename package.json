@@ -20,6 +20,7 @@
     "@atproto/api": "^0.6.20",
     "@atproto/repo": "^0.3.3",
     "@atproto/xrpc-server": "^0.3.3",
+    "aws-sdk": "^2.1487.0",
     "base32": "^0.0.7",
     "cbor": "^9.0.1",
     "chalk": "^4.1.2",

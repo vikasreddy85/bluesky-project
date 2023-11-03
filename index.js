@@ -1,8 +1,8 @@
 const express = require("express");
 const mysql = require("mysql");
 const pkg = require("@atproto/api");
-const WebSocket = require('ws');
 const cbor = require('cbor');
+const { spawn } = require('child_process');
 const BskyAgent = pkg.BskyAgent;
 const extractUrls = require("extract-urls");
 const { Subscription } = require('@atproto/xrpc-server');
@@ -16,6 +16,12 @@ const subscription = new Subscription({
     getState: () => ({}),
     validate: (value) => value,
 });
+const pythonScript = './news_guard.py';
+let below60Count = 0;
+let above60Count = 0;
+let totalMessages = 0;
+let totalLinks = 0;
+let intervalId;
 
 require("dotenv").config();
 app.set("views", "./pages");
@@ -106,7 +112,7 @@ function readInput() {
 		  process.exit(0);
 		} else if (input == 'firesky'){
 			eventHandler();
-		} else {
+        } else {
 		  console.log(`Invalid command: ${input}`);
 		  resolve();
 		}
@@ -118,35 +124,71 @@ const openFirehose = async (cborData) => {
     try {
         // Extract and log URLs from the post
         const car = await readCar(Uint8Array.from(cborData.blocks));
+        const processedURLs = new Set();
+    
         for (const operation of cborData.ops) {
             if (operation.action !== 'create') {
                 continue;
             }
-
+    
             const recordBytes = car.blocks.get(operation.cid);
             if (!recordBytes) {
                 continue;
             }
-
+    
             const lexRecord = cborToLexRecord(recordBytes);
             const collection = operation.path.split('/')[0];
             if (collection !== "app.bsky.feed.post") {
                 continue;
             }
-
-            if (lexRecord.text.toLowerCase().includes("https://")) {
+            if (lexRecord.text !== undefined && collection == "app.bsky.feed.post"){
+                totalMessages++;
+            }
+    
+            if (lexRecord.text !== undefined && lexRecord.text.toLowerCase().includes("https://")) {
                 const urls = extractUrls(lexRecord.text);
-                const uniqueURLs = new Set(urls);
-                if (uniqueURLs.size > 0) {
-                    uniqueURLs.forEach((url) => {
-                        console.log(url);
-                    });
+    
+                if (urls === undefined || !Array.isArray(urls)) {
+                    console.error("No valid URLs found in lexRecord.text:", lexRecord.text);
+                    continue;
+                }
+    
+                for (const shortURL of urls) {
+                    if (!processedURLs.has(shortURL)) {
+                        processedURLs.add(shortURL);
+                        totalLinks++;
+                        const pythonProcess = spawn('python', [pythonScript, shortURL]);
+    
+                        pythonProcess.stdout.on('data', (data) => {
+                            const score = data.toString().trim();
+                            if (score !== "Score not found for URL:") {
+                                console.log(`Score for URL ${shortURL}: ${score}`);
+                                if (!isNaN(score)){
+                                    if (score < 60) {
+                                        below60Count++;
+                                    } else {
+                                        above60Count++;
+                                    }
+                                }
+                            }
+                        });
+    
+                        pythonProcess.stderr.on('data', (data) => {
+                            console.error(data.toString());
+                        });
+    
+                        pythonProcess.on('close', (code) => {
+                            if (code !== 0) {
+                                console.error(`Python process for URL ${shortURL} exited with code ${code}.`);
+                            }
+                        });
+                    }
                 }
             }
         }
     } catch (error) {
-        console.error(`Error: ${error.message}`);
-    }
+        // console.error(`Error: ${error.message}`);
+    } 
 }
 
 //MAIN METHOD
@@ -163,16 +205,41 @@ const openFirehose = async (cborData) => {
 	startServer();
 })();
 
-async function eventHandler() {
+const eventHandler = async () => {
+    const insertDataIntoDatabase = async () => {
+        const date = new Date();
+        const currentDate = date.toISOString().split('T')[0];
+        try {
+            const createDatabaseQuery = `
+            INSERT INTO bsky_news (Day, TotalMessages, TotalLinks, NewsGreaterThan60, NewsLessThan60)
+            VALUES (
+              '${currentDate}', 
+              ${totalMessages}, 
+              ${totalLinks}, 
+              ${above60Count}, 
+              ${below60Count}
+            );
+          `;
+            await queryPromise(createDatabaseQuery, "Data inserted into the database successfully.");
+        } catch (err) {
+            console.error('Error inserting data into the database:', err);
+        }
+
+        below60Count = 0;
+        above60Count = 0;
+        totalLinks = 0;
+        totalMessages = 0;
+    };
+
+    // Clear the previous interval and set a new one
+    clearInterval(intervalId);
+    intervalId = setInterval(insertDataIntoDatabase, 7200000);
+    
     try {
         for await (const event of subscription) {
             openFirehose(event);
         }
     } catch (error) {
-        console.error(`Error: ${error.message}`);
+        console.error(`Error in eventHandler: ${error.message}`);
     }
 };
-
-// Open URL and Check News Provider
-// Check Creditbility of News Provider with NewsGuard
-// Update Database Daily
