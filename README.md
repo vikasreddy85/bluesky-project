@@ -31,13 +31,22 @@ To set up and run this project, follow these steps:
 3. Set up a MySQL database with the name bluesky_db. Make sure to configure the database connection settings in the server.js file.
 
 4. Create a .env file in the project directory and add your Bluesky username and password as environment variables:
+   ```bash
     BLUESKY_USERNAME=your_username
     BLUESKY_PASSWORD=your_password
-6. Start the Node.js server by running: node server.js
+6. Start the Node.js server by running:
+   ```bash
+   node server.js
 
 ## Usage
-To start monitoring Bluesky posts and checking the credibility of news articles, run the following command in the server's console: firesky
-To stop the server, enter the following command in the server's console: stop
+To start monitoring Bluesky posts and checking the credibility of news articles, run the following command in the server's console: 
+   ```bash
+   firesky
+   ```
+To stop the server, enter the following command in the server's console: 
+   ```bash
+   stop
+   ```
 
 ## Dependencies
 - MySQL
