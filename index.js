@@ -11,7 +11,7 @@ const agent = new BskyAgent({ service: "https://bsky.social"});
 const app = express();
 const fetch = require("node-fetch");
 const subscription = new Subscription({
-    service: `wss://bsky.social`,
+    service: `wss://bsky.network`,
     method: `com.atproto.sync.subscribeRepos`,
     getState: () => ({}),
     validate: (value) => value,
@@ -149,7 +149,6 @@ const openFirehose = async (cborData) => {
                 const urls = extractUrls(lexRecord.text);
     
                 if (urls === undefined || !Array.isArray(urls)) {
-                    console.error("No valid URLs found in lexRecord.text:", lexRecord.text);
                     continue;
                 }
     
@@ -233,13 +232,13 @@ const eventHandler = async () => {
 
     // Clear the previous interval and set a new one
     clearInterval(intervalId);
-    intervalId = setInterval(insertDataIntoDatabase, 7200000);
+    intervalId = setInterval(insertDataIntoDatabase, 86400000);
     
     try {
         for await (const event of subscription) {
             openFirehose(event);
         }
     } catch (error) {
-        console.error(`Error in eventHandler: ${error.message}`);
+        // console.error(`Error in eventHandler: ${error.message}`);
     }
 };
