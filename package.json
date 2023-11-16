@@ -33,6 +33,7 @@
     "linkify-it": "^4.0.1",
     "mysql": "^2.18.1",
     "node-fetch": "^2.7.0",
+    "node-ssh": "^13.1.0",
     "nodemon": "^3.0.1",
     "npm": "^10.2.0",
     "progress": "^2.0.3",

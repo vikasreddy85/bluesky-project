@@ -207,7 +207,7 @@ const openFirehose = async (cborData) => {
 const eventHandler = async () => {
     const insertDataIntoDatabase = async () => {
         const date = new Date();
-        const currentDate = date.toISOString().split('T')[0];
+        const currentDate = date.toISOString().split('T')[0] + ' ' + date.toISOString().split('T')[1].split('.')[0];
         try {
             const createDatabaseQuery = `
             INSERT INTO bsky_news (Day, TotalMessages, TotalLinks, NewsGreaterThan60, NewsLessThan60)
@@ -232,7 +232,7 @@ const eventHandler = async () => {
 
     // Clear the previous interval and set a new one
     clearInterval(intervalId);
-    intervalId = setInterval(insertDataIntoDatabase, 86400000);
+    intervalId = setInterval(insertDataIntoDatabase, 3600000);
     
     try {
         for await (const event of subscription) {
