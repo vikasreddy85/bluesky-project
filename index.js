@@ -44,9 +44,9 @@ global.fetch = fetch;
 
 // Create connection
 const db = new Pool({
-	host: "colon.umd.edu",
-  	user: "bluesky_manager",
-  	password: "bluesky",
+	host: process.env.DB_HOST,
+  	user: process.env.DB_USER,
+  	password: process.env.DB_PASSWORD,
   	database: "bluesky_db",
   	port: 5432,
     charset: "utf8mb4"
