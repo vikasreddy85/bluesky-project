@@ -1,7 +1,10 @@
 const express = require("express");
 const mysql = require("mysql");
 const pkg = require("@atproto/api");
+const fs = require('fs');
+const zlib = require('zlib');
 const cbor = require('cbor');
+const { Pool } = require('pg');
 const { spawn } = require('child_process');
 const BskyAgent = pkg.BskyAgent;
 const extractUrls = require("extract-urls");
@@ -10,6 +13,7 @@ const { cborToLexRecord, readCar } = require('@atproto/repo');
 const agent = new BskyAgent({ service: "https://bsky.social"});
 const app = express();
 const fetch = require("node-fetch");
+const parse = require('papaparse');
 const subscription = new Subscription({
     service: `wss://bsky.network`,
     method: `com.atproto.sync.subscribeRepos`,
@@ -17,6 +21,13 @@ const subscription = new Subscription({
     validate: (value) => value,
 });
 const pythonScript = './news_guard.py';
+const currentDate = new Date();
+const formattedDate = currentDate.toISOString().split('T')[0];
+currentFileName = `./Messages/${formattedDate}.txt`;
+let dfCombined;
+let parsedAllSources;
+let parsedMetadata;
+let totalMessagesText = 0;
 let below60Count = 0;
 let above60Count = 0;
 let totalMessages = 0;
@@ -32,12 +43,12 @@ process.stdin.setEncoding("utf8");
 global.fetch = fetch;
 
 // Create connection
-const db = mysql.createConnection({
-	host: "localhost",
-  	user: "vikas",
-  	password: "password",
+const db = new Pool({
+	host: "colon.umd.edu",
+  	user: "bluesky_manager",
+  	password: "bluesky",
   	database: "bluesky_db",
-  	port: 3306,
+  	port: 5432,
     charset: "utf8mb4"
 });
 
@@ -45,38 +56,13 @@ db.connect((err) => {
   	if (err) {
 		console.error("Error connecting to MySQL:", err);
   	}
+	if (!process.env.BLUESKY_USERNAME || !process.env.BLUESKY_PASSWORD) {
+        	console.error("Env variables are not defined!");
+       		process.exit(1);
+   	 }
 });
-
-// Check if environment variables are defined
-if (!process.env.BLUESKY_USERNAME || !process.env.BLUESKY_PASSWORD) {
-	console.error("Env variables are not defined!");
-	process.exit(1);
-}
 
 app.listen("3000", () => {});
-
-app.get("/", async (request, response) => {
-    try {
-        // Create or check the existence of the database
-        const createDatabaseSQL = "CREATE DATABASE IF NOT EXISTS bluesky_db";
-        await queryPromise(createDatabaseSQL, "Database created or already exists...");
-
-        // Create the bsky_news table
-        const createTableSQL = `
-            CREATE TABLE IF NOT EXISTS bsky_news (
-                Day DATE,
-                TotalMessages INT,
-                MessagesLessThan60 INT,
-                MessagesGreaterThan60 INT
-            )
-        `;
-        await queryPromise(createTableSQL, "bsky_news table created...");
-        response.send("Database and table setup completed.");
-    } catch (err) {
-        console.error(err);
-        response.status(500).send("Error occurred during database setup.");
-    }
-});
 
 // Define a function to promisify the database query
 function queryPromise(sql, successMessage) {
@@ -92,40 +78,56 @@ function queryPromise(sql, successMessage) {
     });
 }
 
-async function startServer() {
-	while (true) {
-	  	try {
-			await readInput();
-	  	} catch (error) {
-			console.error('An error occurred:', error);
-		}
-	}
-}
+const compressFile = async (fileName) => {
+    const readStream = fs.createReadStream(fileName);
+    const gzip = zlib.createGzip();
+    const compressedFileName = fileName.replace(/\.[^.]+$/, '') + '.gz';
+    const writeStream = fs.createWriteStream(compressedFileName);
 
-function readInput() {
-	return new Promise((resolve, reject) => {
-	  process.stdout.write('Enter a command: ');
-	  process.stdin.once('data', (input) => {
-		input = input.trim();
-		if (input === 'stop') {
-		  console.log('Shutting down the server');
-		  process.exit(0);
-		} else if (input == 'firesky'){
-			eventHandler();
-        } else {
-		  console.log(`Invalid command: ${input}`);
-		  resolve();
-		}
-	  });
-	});
+    await new Promise((resolve, reject) => {
+        readStream.pipe(gzip).pipe(writeStream);
+        Promise.all([
+            new Promise((resolve) => writeStream.on('close', resolve)),
+            new Promise((resolve) => gzip.on('end', resolve)),
+        ])
+            .then(async () => {
+                await fs.promises.unlink(fileName);
+                resolve();
+            })
+            .catch(reject);
+
+        writeStream.on('error', reject);
+        gzip.on('error', reject);
+    });
+};
+
+setInterval(async () => {
+	const currentFileToCompress = currentFileName;
+        const currentDate = new Date();
+        const formattedDate = currentDate.toISOString().split('T')[0];
+        currentFileName = `./Messages/${formattedDate}.txt`;
+        await compressFile(currentFileToCompress);
+	totalMessagesText = 0;
+}, 86400000);
+
+const initializeData = async () => {
+    const metadataData = fs.readFileSync('./NewsGuard/metadata.csv', 'utf8');
+    const allSourcesData = fs.readFileSync('./NewsGuard/all-sources-metadata.csv', 'utf8');
+
+    try {
+        [parsedMetadata, parsedAllSources] = await Promise.all([parseCSV(metadataData), parseCSV(allSourcesData)]);
+        const commonColumns = getCommonColumns(parsedMetadata, parsedAllSources);
+        const rowsToAppend = getRowsToAppend(parsedMetadata, parsedAllSources);
+        dfCombined = concat(parsedAllSources, rowsToAppend, commonColumns);
+    } catch (err) {
+        console.error('Error:', err);
+    }
 }
 
 const openFirehose = async (cborData) => {
     try {
         // Extract and log URLs from the post
-        const car = await readCar(Uint8Array.from(cborData.blocks));
-        const processedURLs = new Set();
-    
+        const car = await readCar(Uint8Array.from(cborData.blocks)); 
         for (const operation of cborData.ops) {
             if (operation.action !== 'create') {
                 continue;
@@ -137,51 +139,19 @@ const openFirehose = async (cborData) => {
             }
     
             const lexRecord = cborToLexRecord(recordBytes);
-            const collection = operation.path.split('/')[0];
-            if (collection !== "app.bsky.feed.post") {
+            if (lexRecord.text !== undefined && operation.path.split('/')[0] !== "app.bsky.feed.post") {
                 continue;
             }
-            if (lexRecord.text !== undefined && collection == "app.bsky.feed.post"){
+            if (lexRecord.text !== undefined){
                 totalMessages++;
+		fs.appendFileSync(currentFileName, JSON.stringify({ text: lexRecord.text }) + '\n');
             }
     
-            if (lexRecord.text !== undefined && lexRecord.text.toLowerCase().includes("https://")) {
-                const urls = extractUrls(lexRecord.text);
-    
-                if (urls === undefined || !Array.isArray(urls)) {
-                    continue;
-                }
-    
+            if (lexRecord.text.toLowerCase().includes("https://")) {
+                const urls = extractUrls(lexRecord.text);  
                 for (const shortURL of urls) {
-                    if (!processedURLs.has(shortURL)) {
-                        processedURLs.add(shortURL);
-                        totalLinks++;
-                        const pythonProcess = spawn('python', [pythonScript, shortURL]);
-    
-                        pythonProcess.stdout.on('data', (data) => {
-                            const score = data.toString().trim();
-                            if (score !== "Score not found for URL:") {
-                                console.log(`Score for URL ${shortURL}: ${score}`);
-                                if (!isNaN(score)){
-                                    if (score < 60) {
-                                        below60Count++;
-                                    } else {
-                                        above60Count++;
-                                    }
-                                }
-                            }
-                        });
-    
-                        pythonProcess.stderr.on('data', (data) => {
-                            console.error(data.toString());
-                        });
-    
-                        pythonProcess.on('close', (code) => {
-                            if (code !== 0) {
-                                console.error(`Python process for URL ${shortURL} exited with code ${code}.`);
-                            }
-                        });
-                    }
+                    totalLinks++; 
+                    processUrl(shortURL);
                 }
             }
         }
@@ -190,6 +160,82 @@ const openFirehose = async (cborData) => {
     } 
 }
 
+async function findMatchingRow(longUrl) {
+    if (!longUrl) {
+        return null;
+    }
+
+    for (const row of parsedAllSources) {
+        const source = row && row.Source;
+        if (source && longUrl.toLowerCase().includes(source.toLowerCase())) {
+            return row.Score; 
+        }
+    }
+    return null;
+}
+
+async function unshortenUrlPython(shortUrl) {
+    return new Promise((resolve, reject) => {
+        const pythonProcess = spawn('python3', ['news_guard.py', shortUrl]);
+
+        let longUrl = '';
+        let domain = '';
+
+        pythonProcess.stdout.on('data', (data) => {
+            const lines = data.toString().trim().split('\n');
+            if (lines.length >= 2) {
+                longUrl = lines[0].replace('Long URL: ', '');
+                domain = lines[1].replace('Domain: ', '');
+            }
+        });
+
+        pythonProcess.on('close', (code) => {
+            if (code === 0) {
+                resolve({ longUrl, domain });
+            } else {
+                reject(new Error(`Python script exited with code ${code}`));
+            }
+        });
+
+        pythonProcess.stderr.on('data', (data) => {
+            console.error(`Error: ${data}`);
+            reject(new Error(data.toString()));
+        });
+    });
+}
+
+async function processUrl(shortUrl) {
+    try {
+	let score = null;
+        const { longUrl, domain } = await unshortenUrlPython(shortUrl);
+        const cleanedDomain = await replaceWWW(domain);
+        try {
+            const domainRow = dfCombined.find((row) => row && row.Domain === cleanedDomain);
+            if (domainRow) {
+                score = domainRow.Score;
+            } else {
+                score = await findMatchingRow(longUrl);
+            }
+        } catch (error) {
+            console.error('Error:', error);
+        }
+        if (score && !isNaN(score)) {
+            if (score < 60) {
+                below60Count++;
+            } else {
+                above60Count++;
+            }
+        }
+    } catch (error) {
+        console.error('Error processing URL:', error);
+    }
+}
+
+async function replaceWWW(input) {
+    return input.replace('www.', '');
+}
+
+
 //MAIN METHOD
 (async () => {
 	try {
@@ -197,20 +243,21 @@ const openFirehose = async (cborData) => {
             identifier: process.env.BLUESKY_USERNAME,
             password: process.env.BLUESKY_PASSWORD,
         });
+	await initializeData();
     } catch (error) {
         console.error(`Error: Failed to login. Please check your BLUESKY_USERNAME and BLUESKY_PASSWORD.`);
 		throw(error);
     }
-	startServer();
+	eventHandler();
 })();
 
 const eventHandler = async () => {
     const insertDataIntoDatabase = async () => {
         const date = new Date();
-        const currentDate = date.toISOString().split('T')[0] + ' ' + date.toISOString().split('T')[1].split('.')[0];
+        const currentDate = date.toISOString().split('.')[0].replace('T', ' ');
         try {
             const createDatabaseQuery = `
-            INSERT INTO bsky_news (Day, TotalMessages, TotalLinks, NewsGreaterThan60, NewsLessThan60)
+            INSERT INTO bsky_news (day, totalmessages, totallinks, newsgreaterthan60, newslessthan60)
             VALUES (
               '${currentDate}', 
               ${totalMessages}, 
@@ -242,3 +289,41 @@ const eventHandler = async () => {
         // console.error(`Error in eventHandler: ${error.message}`);
     }
 };
+
+function parseCSV(data) {
+    return new Promise((resolve, reject) => {
+        parse.parse(data, {
+            header: true,
+            skipEmptyLines: true,
+            complete: (result) => {
+                const filteredData = result.data.map(row => ({
+                    Score: row.Score,
+                    Domain: row.Domain,
+                    Source: row.Source
+                }));
+                resolve(filteredData);
+            },
+            error: (error) => reject(error)
+        });
+    });
+}
+
+function getCommonColumns(df, dfAll) {
+    const dfColumns = Object.keys(df[0]);
+    const dfAllColumns = Object.keys(dfAll[0]);
+    return dfColumns.filter(col => dfAllColumns.includes(col));
+}
+
+function getRowsToAppend(df, dfAll) {
+    const domains = dfAll.map(row => row.Domain);
+    return df.filter(row => !domains.includes(row.Domain));
+}
+
+function concat(dfAll, rowsToAppend, commonColumns) {
+    const dfCombined = [...dfAll, ...rowsToAppend];
+    return dfCombined.map(row => {
+        const newRow = {};
+        commonColumns.forEach(col => newRow[col] = row[col]);
+        return newRow;
+    });
+}
