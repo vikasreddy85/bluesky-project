@@ -12,7 +12,7 @@ from starlette.staticfiles import StaticFiles
 from starlette.routing import Mount, Route
 app_static = StaticFiles(directory="/Users/vikas/Desktop/bluesky-project/")
 
-db = mysql.connector.connect()
+db = mysql.connector.connect() #ENTER DATABASE CREDENTIALS
 cursor = db.cursor()
 columns_as_arrays = []
 
