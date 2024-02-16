@@ -12,7 +12,7 @@ from starlette.staticfiles import StaticFiles
 from starlette.routing import Mount, Route
 app_static = StaticFiles(directory="/Users/vikas/Desktop/bluesky-project/")
 
-db = mysql.connector.connect() #ENTER DATABASE CREDENTIALS
+db = mysql.connector.connect() # ENTER DATABSE CREDENTIALS
 cursor = db.cursor()
 columns_as_arrays = []
 
@@ -207,8 +207,7 @@ def server(input, output, session):
         custom_tooltips = layer_tooltips().format('Day2', '%b %d %Y')
         tooltips_hour = layer_tooltips().format('Day2', '%b %d %Y %H:%M')
         dtooltips = layer_tooltips().format('DateAndTotalMessages', '%b %d %Y')
-        dcustom_tooltips = layer_tooltips().format('DateAndTotalMessages2', '%b %d %Y')
-        dtooltips_hour = layer_tooltips().format('DateAndTotalMessages2', '%b %d %Y %H:%M')
+
         if selection == 'Hour':
             if radio == "seven":
                 if chart == "absolute":
@@ -431,17 +430,12 @@ def server(input, output, session):
                 else:
                     p = p + lp.scale_x_datetime(format='%b %e %Y')
             elif radio == "custom":
-                if months_difference != 0 or days_difference > 5:
-                    df4['DateAndTotalMessages2'] = pd.to_datetime(df4['DateAndTotalMessages2'])  
-                    tool = dcustom_tooltips
-                else:
-                    tool = dtooltips_hour
                 if chart == "absolute":
                     p = (
                         lp.ggplot(df4)
-                        + lp.geom_area(lp.aes(x='DateAndTotalMessages2', y='NewsLessThan60Daily'), size=1, color='#FF0000', fill='#FF0000', alpha=0.30, position="identity", tooltips=tool)
-                        + lp.geom_area(lp.aes(x='DateAndTotalMessages2', y='NewsGreaterThan60Daily'), size=1, color='#00008B', fill='#00008B', alpha=0.25, position="identity", tooltips=tool)
-                        + lp.geom_area(lp.aes(x='DateAndTotalMessages2', y='TotalLinksDaily'), size=1, color='#83F28F', fill='#83F28F', alpha=0.40, position="identity", tooltips=tool)
+                        + lp.geom_area(lp.aes(x='DateAndTotalMessages', y='NewsLessThan60Daily'), size=1, color='#FF0000', fill='#FF0000', alpha=0.30, position="identity", tooltips=dtooltips)
+                        + lp.geom_area(lp.aes(x='DateAndTotalMessages', y='NewsGreaterThan60Daily'), size=1, color='#00008B', fill='#00008B', alpha=0.25, position="identity", tooltips=dtooltips)
+                        + lp.geom_area(lp.aes(x='DateAndTotalMessages', y='TotalLinksDaily'), size=1, color='#83F28F', fill='#83F28F', alpha=0.40, position="identity", tooltips=dtooltips)
                         + lp.ggsize(1865 // 2, 980 // 1.65)     
                         + lp.theme(axis_text_x=lp.element_text(angle=360, hjust=1))
                         + lp.xlab("Date")
@@ -452,8 +446,8 @@ def server(input, output, session):
                 elif chart == "relative":
                     p = (
                         lp.ggplot(df4)
-                        + lp.geom_area(lp.aes(x='DateAndTotalMessages2', y='RelativeNewsLessThan60Daily'), size=1, color='#FF0000', fill='#FF0000', alpha=0.45, position="identity", tooltips=tool)
-                        + lp.geom_area(lp.aes(x='DateAndTotalMessages2', y='RelativeNewsGreaterThan60Daily'), size=1, color='#00008B', fill='#00008B', alpha=0.4, position="identity", tooltips=tool)
+                        + lp.geom_area(lp.aes(x='DateAndTotalMessages', y='RelativeNewsLessThan60Daily'), size=1, color='#FF0000', fill='#FF0000', alpha=0.45, position="identity", tooltips=dtooltips)
+                        + lp.geom_area(lp.aes(x='DateAndTotalMessages', y='RelativeNewsGreaterThan60Daily'), size=1, color='#00008B', fill='#00008B', alpha=0.4, position="identity", tooltips=dtooltips)
                         + lp.ggsize(1865 // 2, 980 // 1.65)     
                         + lp.theme(axis_text_x=lp.element_text(angle=360, hjust=1))
                         + lp.xlab("Date")
@@ -465,7 +459,7 @@ def server(input, output, session):
                     raise ValueError(f'{chart=} is not valid.')
                 if all_months_difference >= 3:
                     p = p + lp.scale_x_datetime(format='%b %Y')
-                elif (months_difference != 0 and days_difference > 5):
+                else:
                     p = p + lp.scale_x_datetime(format='%b %d %Y')
         else:
             raise ValueError(f'{selection=} is not valid.')
