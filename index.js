@@ -41,14 +41,7 @@ process.stdin.setEncoding("utf8");
 global.fetch = fetch;
 
 // Create connection
-const db =  mysql.createConnection({
-	host: "localhost",
-  	user: "vikas",
-  	password: "password",
-  	database: "bluesky_db",
-  	port: 3306,
-    charset: "utf8mb4"
-});
+const db =  mysql.createConnection({});
 
 db.connect((err) => {
   	if (err) {
