@@ -12,14 +12,7 @@ from starlette.staticfiles import StaticFiles
 from starlette.routing import Mount, Route
 app_static = StaticFiles(directory="/Users/vikas/Desktop/bluesky-project/")
 
-db = mysql.connector.connect(
-    host="localhost",
-    user="vikas",
-    password="password",
-    database="bluesky_db",
-    port=3306,
-    charset="utf8mb4"
-)
+db = mysql.connector.connect()
 cursor = db.cursor()
 columns_as_arrays = []
 
@@ -80,10 +73,6 @@ app_ui = ui.page_fluid(
                     "This chart shows a real-time assessment of the \"weather conditions\" of Bluesky as a news platform. Using the Bluesky Firehose API, we track the amount of news content that is being posted by users on bsky.social. The chart shows the amount of reliable and unreliable news out of all posts sharing any external content."
                 ),
                 ui.output_ui("sub_text"),
-                ui.tags.div(
-                    ui.HTML('<p>Click on our <a href="/about" target="_blank">FAQ</a> page for more information about this project.'),
-                        style = "display: inline-block;"
-                ),
                 style='border: 2px solid #ccc; border-radius: 10px; padding: 20px;'
             ),
             ui.tags.div(
@@ -156,6 +145,7 @@ app_ui = ui.page_fluid(
             ),
         ),
         ui.panel_main(
+            ui.output_ui("about"),
             ui.output_ui("overlayText"),
             ui.output_ui("letsplot")
         )
@@ -227,7 +217,7 @@ def server(input, output, session):
                         + lp.geom_area(lp.aes(x='Day', y='NewsLessThan60'), size=1, color='#FF0000', fill='#FF0000', alpha=0.30, position="identity", tooltips=tooltips)
                         + lp.geom_area(lp.aes(x='Day', y='NewsGreaterThan60'), size=1, color='#00008B', fill='#00008B', alpha=0.25, position="identity", tooltips=tooltips)
                         + lp.geom_area(lp.aes(x='Day', y='TotalLinks'), size=1, color='#83F28F', fill='#83F28F', alpha=0.40, position="identity", tooltips=tooltips)
-                        + lp.ggsize(1880 // 2, 1030 // 1.65)
+                        + lp.ggsize(1865 // 2, 980 // 1.65)
                         + lp.theme(axis_text_x=lp.element_text(angle=360, hjust=1))
                         + lp.xlab("Date")
                         + lp.ylab("Number of Links")
@@ -239,7 +229,7 @@ def server(input, output, session):
                         lp.ggplot(df2)
                         + lp.geom_area(lp.aes(x='Day', y='RelativeNewsLessThan60'), size=1, color='#FF0000', fill='#FF0000', alpha=0.45, position="identity", tooltips=tooltips)
                         + lp.geom_area(lp.aes(x='Day', y='RelativeNewsGreaterThan60'), size=1, color='#00008B', fill='#00008B', alpha=0.4, position="identity", tooltips=tooltips)
-                        + lp.ggsize(1880 // 2, 1030 // 1.65)
+                        + lp.ggsize(1865 // 2, 980 // 1.65)
                         + lp.theme(axis_text_x=lp.element_text(angle=360, hjust=1))
                         + lp.xlab("Date")
                         + lp.ylab("Proportion of News Links")
@@ -256,7 +246,7 @@ def server(input, output, session):
                         + lp.geom_area(lp.aes(x='Day', y='NewsLessThan60'), size=1, color='#FF0000', fill='#FF0000', alpha=0.30, position="identity", tooltips=tooltips)
                         + lp.geom_area(lp.aes(x='Day', y='NewsGreaterThan60'), size=1, color='#00008B', fill='#00008B', alpha=0.25, position="identity", tooltips=tooltips)
                         + lp.geom_area(lp.aes(x='Day', y='TotalLinks'), size=1, color='#83F28F', fill='#83F28F', alpha=0.40, position="identity", tooltips=tooltips)
-                        + lp.ggsize(1880 // 2, 1030 // 1.65)
+                        + lp.ggsize(1865 // 2, 980 // 1.65)
                         + lp.theme(axis_text_x=lp.element_text(angle=360, hjust=1))
                         + lp.xlab("Date")
                         + lp.ylab("Number of Links")
@@ -268,7 +258,7 @@ def server(input, output, session):
                         lp.ggplot(df3)
                         + lp.geom_area(lp.aes(x='Day', y='RelativeNewsLessThan60'), size=1, color='#FF0000', fill='#FF0000', alpha=0.45, position="identity", tooltips=tooltips)
                         + lp.geom_area(lp.aes(x='Day', y='RelativeNewsGreaterThan60'), size=1, color='#00008B', fill='#00008B', alpha=0.4, position="identity", tooltips=tooltips)
-                        + lp.ggsize(1880 // 2, 1030 // 1.65)
+                        + lp.ggsize(1865 // 2, 980 // 1.65)
                         + lp.theme(axis_text_x=lp.element_text(angle=360, hjust=1))
                         + lp.xlab("Date")
                         + lp.ylab("Proportion of News Links")
@@ -285,7 +275,7 @@ def server(input, output, session):
                         + lp.geom_area(lp.aes(x='Day', y='NewsLessThan60'), size=1, color='#FF0000', fill='#FF0000', alpha=0.30, position="identity", tooltips=tooltips)
                         + lp.geom_area(lp.aes(x='Day', y='NewsGreaterThan60'), size=1, color='#00008B', fill='#00008B', alpha=0.25, position="identity", tooltips=tooltips)
                         + lp.geom_area(lp.aes(x='Day', y='TotalLinks'), size=1, color='#83F28F', fill='#83F28F', alpha=0.40, position="identity", tooltips=tooltips)
-                        + lp.ggsize(1880 // 2, 1030 // 1.65)
+                        + lp.ggsize(1865 // 2, 980 // 1.65)
                         + lp.theme(axis_text_x=lp.element_text(angle=360, hjust=1))
                         + lp.xlab("Date")
                         + lp.ylab("Number of Links")
@@ -297,7 +287,7 @@ def server(input, output, session):
                         lp.ggplot(df)
                         + lp.geom_area(lp.aes(x='Day', y='RelativeNewsLessThan60'), size=1, color='#FF0000', fill='#FF0000', alpha=0.45, position="identity", tooltips=tooltips)
                         + lp.geom_area(lp.aes(x='Day', y='RelativeNewsGreaterThan60'), size=1, color='#00008B', fill='#00008B', alpha=0.4, position="identity", tooltips=tooltips)
-                        + lp.ggsize(1880 // 2, 1030 // 1.65)
+                        + lp.ggsize(1865 // 2, 980 // 1.65)
                         + lp.theme(axis_text_x=lp.element_text(angle=360, hjust=1))
                         + lp.xlab("Date")
                         + lp.ylab("Proportion of News Links")
@@ -323,7 +313,7 @@ def server(input, output, session):
                         + lp.geom_area(lp.aes(x='Day2', y='NewsLessThan60'), size=1, color='#FF0000', fill='#FF0000', alpha=0.30, position="identity", tooltips=tool)
                         + lp.geom_area(lp.aes(x='Day2', y='NewsGreaterThan60'), size=1, color='#00008B', fill='#00008B', alpha=0.25, position="identity", tooltips=tool)
                         + lp.geom_area(lp.aes(x='Day2', y='TotalLinks'), size=1, color='#83F28F', fill='#83F28F', alpha=0.40, position="identity", tooltips=tool)
-                        + lp.ggsize(1880 // 2, 1030 // 1.65)
+                        + lp.ggsize(1865 // 2, 980 // 1.65)
                         + lp.theme(axis_text_x=lp.element_text(angle=360, hjust=1))
                         + lp.xlab("Date")
                         + lp.ylab("Number of Links")
@@ -335,7 +325,7 @@ def server(input, output, session):
                         lp.ggplot(df4)
                         + lp.geom_area(lp.aes(x='Day2', y='RelativeNewsLessThan60'), size=1, color='#FF0000', fill='#FF0000', alpha=0.45, position="identity", tooltips=tool)
                         + lp.geom_area(lp.aes(x='Day2', y='RelativeNewsGreaterThan60'), size=1, color='#00008B', fill='#00008B', alpha=0.4, position="identity", tooltips=tool)
-                        + lp.ggsize(1880 // 2, 1030 // 1.65)
+                        + lp.ggsize(1865 // 2, 980 // 1.65)
                         + lp.theme(axis_text_x=lp.element_text(angle=360, hjust=1))
                         + lp.xlab("Date")
                         + lp.ylab("Proportion of News Links")
@@ -344,8 +334,11 @@ def server(input, output, session):
                     )
                 else:
                     raise ValueError(f'{chart=} is not valid.')
+                print(months_difference)
                 if all_months_difference >= 3:
                     p = p + lp.scale_x_datetime(format='%b %Y')
+                elif (months_difference != 0 or days_difference > 5):
+                    p = p + lp.scale_x_datetime(format='%b %d %Y')
         elif selection == 'Day':
             if radio == "thirty":
                 if chart == "absolute":
@@ -354,7 +347,7 @@ def server(input, output, session):
                         + lp.geom_area(lp.aes(x='DateAndTotalMessages', y='NewsLessThan60Daily'), size=1, color='#FF0000', fill='#FF0000', alpha=0.30, position="identity", tooltips=dtooltips)
                         + lp.geom_area(lp.aes(x='DateAndTotalMessages', y='NewsGreaterThan60Daily'), size=1, color='#00008B', fill='#00008B', alpha=0.25, position="identity", tooltips=dtooltips)
                         + lp.geom_area(lp.aes(x='DateAndTotalMessages', y='TotalLinksDaily'), size=1, color='#83F28F', fill='#83F28F', alpha=0.40, position="identity", tooltips=dtooltips)
-                        + lp.ggsize(1880 // 2, 1030 // 1.65)     
+                        + lp.ggsize(1865 // 2, 980 // 1.65)     
                         + lp.theme(axis_text_x=lp.element_text(angle=360, hjust=1))
                         + lp.xlab("Date")
                         + lp.ylab("Number of Links")
@@ -366,7 +359,7 @@ def server(input, output, session):
                         lp.ggplot(df3)
                         + lp.geom_area(lp.aes(x='DateAndTotalMessages', y='RelativeNewsLessThan60Daily'), size=1, color='#FF0000', fill='#FF0000', alpha=0.45, position="identity", tooltips=dtooltips)
                         + lp.geom_area(lp.aes(x='DateAndTotalMessages', y='RelativeNewsGreaterThan60Daily'), size=1, color='#00008B', fill='#00008B', alpha=0.4, position="identity", tooltips=dtooltips)
-                        + lp.ggsize(1880 // 2, 1030 // 1.65)     
+                        + lp.ggsize(1865 // 2, 980 // 1.65)     
                         + lp.theme(axis_text_x=lp.element_text(angle=360, hjust=1))
                         + lp.xlab("Date")
                         + lp.ylab("Proportion of News Links")
@@ -383,7 +376,7 @@ def server(input, output, session):
                         + lp.geom_area(lp.aes(x='DateAndTotalMessages', y='NewsLessThan60Daily'), size=1, color='#FF0000', fill='#FF0000', alpha=0.30, position="identity", tooltips=dtooltips)
                         + lp.geom_area(lp.aes(x='DateAndTotalMessages', y='NewsGreaterThan60Daily'), size=1, color='#00008B', fill='#00008B', alpha=0.25, position="identity", tooltips=dtooltips)
                         + lp.geom_area(lp.aes(x='DateAndTotalMessages', y='TotalLinksDaily'), size=1, color='#83F28F', fill='#83F28F', alpha=0.40, position="identity", tooltips=dtooltips)
-                        + lp.ggsize(1880 // 2, 1030 // 1.65)     
+                        + lp.ggsize(1865 // 2, 980 // 1.65)     
                         + lp.theme(axis_text_x=lp.element_text(angle=360, hjust=1))
                         + lp.xlab("Date")
                         + lp.ylab("Number of Links")
@@ -395,7 +388,7 @@ def server(input, output, session):
                         lp.ggplot(df2)
                         + lp.geom_area(lp.aes(x='DateAndTotalMessages', y='RelativeNewsLessThan60Daily'), size=1, color='#FF0000', fill='#FF0000', alpha=0.45, position="identity", tooltips=dtooltips)
                         + lp.geom_area(lp.aes(x='DateAndTotalMessages', y='RelativeNewsGreaterThan60Daily'), size=1, color='#00008B', fill='#00008B', alpha=0.4, position="identity", tooltips=dtooltips)
-                        + lp.ggsize(1880 // 2, 1030 // 1.65)     
+                        + lp.ggsize(1865 // 2, 980 // 1.65)     
                         + lp.theme(axis_text_x=lp.element_text(angle=360, hjust=1))
                         + lp.xlab("Date")
                         + lp.ylab("Proportion of News Links")
@@ -412,7 +405,7 @@ def server(input, output, session):
                         + lp.geom_area(lp.aes(x='DateAndTotalMessages', y='NewsLessThan60Daily'), size=1, color='#FF0000', fill='#FF0000', alpha=0.30, position="identity", tooltips=dtooltips)
                         + lp.geom_area(lp.aes(x='DateAndTotalMessages', y='NewsGreaterThan60Daily'), size=1, color='#00008B', fill='#00008B', alpha=0.25, position="identity", tooltips=dtooltips)
                         + lp.geom_area(lp.aes(x='DateAndTotalMessages', y='TotalLinksDaily'), size=1, color='#83F28F', fill='#83F28F', alpha=0.40, position="identity", tooltips=dtooltips)
-                        + lp.ggsize(1880 // 2, 1030 // 1.65)     
+                        + lp.ggsize(1865 // 2, 980 // 1.65)     
                         + lp.theme(axis_text_x=lp.element_text(angle=360, hjust=1))
                         + lp.xlab("Date")
                         + lp.ylab("Number of Links")
@@ -424,7 +417,7 @@ def server(input, output, session):
                         lp.ggplot(df)
                         + lp.geom_area(lp.aes(x='DateAndTotalMessages', y='RelativeNewsLessThan60Daily'), size=1, color='#FF0000', fill='#FF0000', alpha=0.45, position="identity", tooltips=dtooltips)
                         + lp.geom_area(lp.aes(x='DateAndTotalMessages', y='RelativeNewsGreaterThan60Daily'), size=1, color='#00008B', fill='#00008B', alpha=0.4, position="identity", tooltips=dtooltips)
-                        + lp.ggsize(1880 // 2, 1030 // 1.65)     
+                        + lp.ggsize(1865 // 2, 980 // 1.65)     
                         + lp.theme(axis_text_x=lp.element_text(angle=360, hjust=1))
                         + lp.xlab("Date")
                         + lp.ylab("Proportion of News Links")
@@ -449,7 +442,7 @@ def server(input, output, session):
                         + lp.geom_area(lp.aes(x='DateAndTotalMessages2', y='NewsLessThan60Daily'), size=1, color='#FF0000', fill='#FF0000', alpha=0.30, position="identity", tooltips=tool)
                         + lp.geom_area(lp.aes(x='DateAndTotalMessages2', y='NewsGreaterThan60Daily'), size=1, color='#00008B', fill='#00008B', alpha=0.25, position="identity", tooltips=tool)
                         + lp.geom_area(lp.aes(x='DateAndTotalMessages2', y='TotalLinksDaily'), size=1, color='#83F28F', fill='#83F28F', alpha=0.40, position="identity", tooltips=tool)
-                        + lp.ggsize(1880 // 2, 1030 // 1.65)     
+                        + lp.ggsize(1865 // 2, 980 // 1.65)     
                         + lp.theme(axis_text_x=lp.element_text(angle=360, hjust=1))
                         + lp.xlab("Date")
                         + lp.ylab("Number of Links")
@@ -461,7 +454,7 @@ def server(input, output, session):
                         lp.ggplot(df4)
                         + lp.geom_area(lp.aes(x='DateAndTotalMessages2', y='RelativeNewsLessThan60Daily'), size=1, color='#FF0000', fill='#FF0000', alpha=0.45, position="identity", tooltips=tool)
                         + lp.geom_area(lp.aes(x='DateAndTotalMessages2', y='RelativeNewsGreaterThan60Daily'), size=1, color='#00008B', fill='#00008B', alpha=0.4, position="identity", tooltips=tool)
-                        + lp.ggsize(1880 // 2, 1030 // 1.65)     
+                        + lp.ggsize(1865 // 2, 980 // 1.65)     
                         + lp.theme(axis_text_x=lp.element_text(angle=360, hjust=1))
                         + lp.xlab("Date")
                         + lp.ylab("Proportion of News Links")
@@ -472,6 +465,8 @@ def server(input, output, session):
                     raise ValueError(f'{chart=} is not valid.')
                 if all_months_difference >= 3:
                     p = p + lp.scale_x_datetime(format='%b %Y')
+                elif (months_difference != 0 and days_difference > 5):
+                    p = p + lp.scale_x_datetime(format='%b %d %Y')
         else:
             raise ValueError(f'{selection=} is not valid.')
 
@@ -507,6 +502,15 @@ def server(input, output, session):
             else:
                 return ui.tags.p("Invalid emoji value")
             return x
+        
+        @output(id='about')
+        @render.ui
+        @reactive.event(input.value)
+        def about():
+            return (ui.tags.div(
+                    ui.HTML('<a href="/about" target="_blank">About</a>'),
+                        style = "display: flex; justify-content: flex-end; margin-bottom: -10px;"),
+                    )
         
         @output(id='sub_text')
         @render.ui
@@ -579,7 +583,7 @@ def server(input, output, session):
                     style="display: flex; justify-content: flex-end; margin-bottom: -10px;"
                 )
             )
-
+    
     @reactive.Effect
     @reactive.event(input.dataset)
     def _():
