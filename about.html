@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Skywatch FAQ</title>
+    <style>
+         @import url('https://fonts.googleapis.com/css2?family=Jost:wght@500&display=swap');
+        body {
+            font-family: Jost;
+            margin-left: 15px;
+        }
+
+        p {
+            font-size: 1.02rem;
+        }
+
+    </style>
+</head>
+<body>
+    <h1>Skywatch FAQ</h1>
+
+    <section>
+        <h2>How is the data collected?</h2>
+        <p>We collect data from the Bluesky firehose, which provides a stream of all messages posted by Bluesky users in real time. We only consider posts that include a link to a news website. Utilizing the NewsGuard rating system, each link is classified as reliable or unreliable.</p>
+    </section>
+
+    <section>
+        <h2>How often is the chart updated?</h2>
+        <p>A database entry is made every hour, and then the chart is updated immediately after.</p>
+    </section>
+
+    <section>
+        <h2>What does the Emoji represent?</h2>
+        <p>The emoji represents the average proportion of unreliable news links over the last 7 days. The average value is matched with the corresponding emoji using the following scale:</p>
+        <ul>
+            <li>(0.0, 0.10): ☀️</li>
+            <li>(0.10, 0.20): 🌤️</li>
+            <li>(0.20, 0.30): ⛅️</li>
+            <li>(0.30, 0.40): ☁️</li>
+            <li>(0.40, 0.50): 🌦️</li>
+            <li>(0.50, 0.60): 🌧️</li>
+            <li>(0.60, 0.70): 🌩️</li>
+            <li>(0.70, 0.80): ⛈️</li>
+            <li>(0.80, 0.90): 🌨️</li>
+            <li>(0.90, 1.00): 🌪️</li>
+        </ul>
+        
+    </section>
+
+    <section>
+        <h2>How do you decide what is reliable or not?</h2>
+        <p>We rely on a third-party assessment by NewsGuard. Their rating system is compiled by a team of professional journalists, who assess the credibility and transparency of a news website on a scale from 0 to 100. News websites that score at or above 60 adhere to basic standards of credibility and transparency and are considered reliable, while scores below 60 typically indicate that a news source is deemed unreliable and in violation of basic journalistic standards.</p>
+    </section>
+
+    <section>
+        <h2>How was the visualization developed?</h2>
+        <p>The visualization is created using Shiny for Python code and the lets_plot library, the Python counterpart to the popular 'ggplot2' library in R. The initial steps involve fetching data from the PostgreSQL database, with subsequent processing and transformation into a Pandas DataFrame (df). This DataFrame serves as the foundation for the visualization, containing essential information such as timestamps, total links, and NewsGuard classifications. The lets_plot library is used for creating the charts, utilizing lp.geom_area functions to represent various areas within the plot, each corresponding to categories such as 'Reliable', 'Unreliable', and 'Total'.</p>
+    </section>
+
+    <section>
+        <h2>Is the code opensource?</h2>
+        <p>Yes, you can find the code on <a href="https://github.com/CSDL-UMD/bluesky-project" target="_blank">GitHub</a>.</p>
+    </section>
+
+    <section>
+        <h2>Who created the visualization?</h2>
+        <p>My name is Vikas Reddy, and I am an undergraduate computer science major at the University of Maryland, College Park. I am a proud member of the Computational Social Dynamics Lab, and my research interests include cloud computing, social computing, and human-computer interaction.</p>
+    </section>
+
+</body>
+</html>

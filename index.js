@@ -4,7 +4,6 @@ const pkg = require("@atproto/api");
 const fs = require('fs');
 const zlib = require('zlib');
 const cbor = require('cbor');
-const { Pool } = require('pg');
 const { spawn } = require('child_process');
 const BskyAgent = pkg.BskyAgent;
 const extractUrls = require("extract-urls");
@@ -27,7 +26,6 @@ currentFileName = `./Messages/${formattedDate}.txt`;
 let dfCombined;
 let parsedAllSources;
 let parsedMetadata;
-let totalMessagesText = 0;
 let below60Count = 0;
 let above60Count = 0;
 let totalMessages = 0;
@@ -43,12 +41,12 @@ process.stdin.setEncoding("utf8");
 global.fetch = fetch;
 
 // Create connection
-const db = new Pool({
-	host: process.env.DB_HOST,
-  	user: process.env.DB_USER,
-  	password: process.env.DB_PASSWORD,
+const db =  mysql.createConnection({
+	host: "localhost",
+  	user: "vikas",
+  	password: "password",
   	database: "bluesky_db",
-  	port: 5432,
+  	port: 3306,
     charset: "utf8mb4"
 });
 
@@ -62,6 +60,23 @@ db.connect((err) => {
    	 }
 });
 
+app.get('/', (req, res) => { // NEW
+    res.sendFile(__dirname + '/app.html');
+});
+
+app.get('/get_data', (req, res) => { //NEW
+    const query = 'SELECT day, totalmessages, totallinks, newsgreaterthan60, newslessthan60 FROM bsky_news';
+    db.query(query, (err, results) => {
+      if (err) {
+        console.error('Error executing query:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+        return;
+      }
+      res.json(results);
+    });
+});
+
+app.use(express.static('public')); // NEW
 app.listen("3000", () => {});
 
 // Define a function to promisify the database query
@@ -77,38 +92,6 @@ function queryPromise(sql, successMessage) {
         });
     });
 }
-
-const compressFile = async (fileName) => {
-    const readStream = fs.createReadStream(fileName);
-    const gzip = zlib.createGzip();
-    const compressedFileName = fileName.replace(/\.[^.]+$/, '') + '.gz';
-    const writeStream = fs.createWriteStream(compressedFileName);
-
-    await new Promise((resolve, reject) => {
-        readStream.pipe(gzip).pipe(writeStream);
-        Promise.all([
-            new Promise((resolve) => writeStream.on('close', resolve)),
-            new Promise((resolve) => gzip.on('end', resolve)),
-        ])
-            .then(async () => {
-                await fs.promises.unlink(fileName);
-                resolve();
-            })
-            .catch(reject);
-
-        writeStream.on('error', reject);
-        gzip.on('error', reject);
-    });
-};
-
-setInterval(async () => {
-	const currentFileToCompress = currentFileName;
-        const currentDate = new Date();
-        const formattedDate = currentDate.toISOString().split('T')[0];
-        currentFileName = `./Messages/${formattedDate}.txt`;
-        await compressFile(currentFileToCompress);
-	totalMessagesText = 0;
-}, 86400000);
 
 const initializeData = async () => {
     const metadataData = fs.readFileSync('./NewsGuard/metadata.csv', 'utf8');
@@ -132,25 +115,23 @@ const openFirehose = async (cborData) => {
             if (operation.action !== 'create') {
                 continue;
             }
-    
             const recordBytes = car.blocks.get(operation.cid);
+            // console.log(recordBytes);
             if (!recordBytes) {
                 continue;
             }
-    
             const lexRecord = cborToLexRecord(recordBytes);
             if (lexRecord.text !== undefined && operation.path.split('/')[0] !== "app.bsky.feed.post") {
                 continue;
             }
             if (lexRecord.text !== undefined){
                 totalMessages++;
-		fs.appendFileSync(currentFileName, JSON.stringify({ text: lexRecord.text }) + '\n');
+                console.log(lexRecord.text);
             }
-    
             if (lexRecord.text.toLowerCase().includes("https://")) {
                 const urls = extractUrls(lexRecord.text);  
                 for (const shortURL of urls) {
-                    totalLinks++; 
+                    totalLinks++;
                     processUrl(shortURL);
                 }
             }
@@ -220,6 +201,7 @@ async function processUrl(shortUrl) {
             console.error('Error:', error);
         }
         if (score && !isNaN(score)) {
+            // console.log(longUrl, score);
             if (score < 60) {
                 below60Count++;
             } else {
@@ -279,7 +261,7 @@ const eventHandler = async () => {
 
     // Clear the previous interval and set a new one
     clearInterval(intervalId);
-    intervalId = setInterval(insertDataIntoDatabase, 3600000);
+    intervalId = setInterval(insertDataIntoDatabase, 7200000);
     
     try {
         for await (const event of subscription) {
