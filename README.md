@@ -97,5 +97,5 @@ Access the application by entering http://127.0.0.1:3000/ in your web browser.
 [Python-url]: https://www.python.org/
 [PostgreSQL]: https://img.shields.io/badge/postgresql-4169e1?style=for-the-badge&logo=postgresql&logoColor=white
 [PostgreSQL-url]: https://www.postgresql.org/
-[Shiny]: https://img.shields.io/badge/Shiny-shinyapps.io-blue?style=flat&labelColor=white&&logoColor=blue)]
+[Shiny]: https://img.shields.io/badge/Shiny-shinyapps.io-blue?style=flat&labelColor=white&&logoColor=blue
 [Shiny-url]: https://shiny.posit.co/
