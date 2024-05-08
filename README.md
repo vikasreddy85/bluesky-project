@@ -52,7 +52,7 @@ $ pip3 show shiny
 
 1. Clone the repo
    ```sh
-   git clone https://github.com/github_username/repo_name.git
+   git clone https://github.com/CSDL-UMD/bluesky-project.git
    ```
 2. Install npm packages
    ```sh
